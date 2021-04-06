@@ -352,13 +352,62 @@ create_geometric_coarsening_sequence(Triangulation<dim, spacedim> const & fine_t
         if(i != numbers::flat_manifold_id)
           new_tria->set_manifold(i, fine_triangulation->get_manifold(i));
 
-      // extract relevant information from distributed triangulation
-      auto const construction_data =
-        TriangulationDescription::Utilities::create_description_from_triangulation(
-          temp_tria, fine_triangulation->get_communicator());
+      if(l - 1 == 0)
+      {
+        unsigned int const n_partitions = std::min<unsigned int>(
+          100, Utilities::MPI::n_mpi_processes(fine_triangulation->get_communicator()));
+        unsigned int const group_size = [&]() {
+          auto comm = temp_tria.get_communicator();
 
-      // actually create triangulation
-      new_tria->create_triangulation(construction_data);
+          int rank;
+          MPI_Comm_rank(comm, &rank);
+
+          MPI_Comm comm_shared;
+          MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL, &comm_shared);
+
+          int size_shared;
+          MPI_Comm_size(comm_shared, &size_shared);
+
+          // determine maximum, since some shared memory communicators might not be
+          // filed completely
+          int size_shared_max;
+          MPI_Allreduce(&size_shared, &size_shared_max, 1, MPI_INT, MPI_MAX, comm);
+
+          MPI_Comm_free(&comm_shared);
+
+          return size_shared_max;
+        }();
+
+        // extract relevant information from distributed triangulation
+        auto const construction_data =
+          TriangulationDescription::Utilities::create_description_from_triangulation_in_groups<dim,
+                                                                                               dim>(
+            [&](auto & tria) {
+              auto const coarse_mesh_description =
+                GridTools::get_coarse_mesh_description(temp_tria);
+              tria.create_triangulation(std::get<0>(coarse_mesh_description),
+                                        std::get<1>(coarse_mesh_description),
+                                        std::get<2>(coarse_mesh_description));
+            },
+            [&](auto & tria, auto const &, const auto) {
+              GridTools::partition_triangulation_zorder(n_partitions, tria);
+            },
+            temp_tria.get_communicator(),
+            group_size);
+
+        // actually create triangulation
+        new_tria->create_triangulation(construction_data);
+      }
+      else
+      {
+        // extract relevant information from distributed triangulation
+        auto const construction_data =
+          TriangulationDescription::Utilities::create_description_from_triangulation(
+            temp_tria, fine_triangulation->get_communicator());
+
+        // actually create triangulation
+        new_tria->create_triangulation(construction_data);
+      }
 
       // save mesh
       coarse_grid_triangulations[l - 1] = new_tria;
