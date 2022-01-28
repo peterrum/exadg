@@ -89,6 +89,7 @@ TimeIntGenAlpha<dim, Number>::setup(bool const do_restart)
     pde_operator->prescribe_initial_displacement(displacement_n, this->get_time());
     pde_operator->prescribe_initial_velocity(velocity_n, this->get_time());
     // solve momentum equation to obtain initial acceleration
+
     pde_operator->compute_initial_acceleration(acceleration_n, displacement_n, this->get_time());
   }
 
@@ -144,10 +145,10 @@ TimeIntGenAlpha<dim, Number>::solve_timestep()
   timer.restart();
 
   // initial guess
-  if(use_extrapolation)
-    displacement_np = displacement_n;
-  else
-    displacement_np = displacement_last_iter;
+  // if(use_extrapolation)
+  //   displacement_np = displacement_n;
+  // else
+  //   displacement_np = displacement_last_iter;
 
   if(param.large_deformation) // nonlinear case
   {
