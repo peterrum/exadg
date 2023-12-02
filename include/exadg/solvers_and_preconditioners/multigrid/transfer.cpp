@@ -43,24 +43,39 @@ MultigridTransfer<dim, Number, VectorType>::reinit(
 
     if(coarse_level.h_level() != fine_level.h_level()) // h-transfer
     {
-      transfers[i].reinit_geometric_transfer(
+      auto transfer = std::make_shared<dealii::MGTwoLevelTransfer<dim, VectorType>>();
+      transfer->reinit_geometric_transfer(
         mg_matrixfree[i]->get_dof_handler(dof_handler_index),
         mg_matrixfree[i - 1]->get_dof_handler(dof_handler_index),
         mg_matrixfree[i]->get_affine_constraints(dof_handler_index),
         mg_matrixfree[i - 1]->get_affine_constraints(dof_handler_index),
         mg_matrixfree[i]->get_mg_level(),
         mg_matrixfree[i - 1]->get_mg_level());
+      transfers[i] = transfer;
     }
     else if(coarse_level.degree() != fine_level.degree() or // p-transfer
             coarse_level.is_dg() != fine_level.is_dg())     // c-transfer
     {
-      transfers[i].reinit_polynomial_transfer(
+      auto transfer = std::make_shared<dealii::MGTwoLevelTransfer<dim, VectorType>>();
+      transfer->reinit_polynomial_transfer(
         mg_matrixfree[i]->get_dof_handler(dof_handler_index),
         mg_matrixfree[i - 1]->get_dof_handler(dof_handler_index),
         mg_matrixfree[i]->get_affine_constraints(dof_handler_index),
         mg_matrixfree[i - 1]->get_affine_constraints(dof_handler_index),
         mg_matrixfree[i]->get_mg_level(),
         mg_matrixfree[i - 1]->get_mg_level());
+      transfers[i] = transfer;
+    }
+    else if(false) // TODO: implement logic
+    {
+      auto transfer = std::make_shared<dealii::MGTwoLevelTransferNonNested<dim, VectorType>>();
+      transfer->reinit(mg_matrixfree[i]->get_dof_handler(dof_handler_index),
+                       mg_matrixfree[i - 1]->get_dof_handler(dof_handler_index),
+                       *mg_matrixfree[i]->get_mapping_info().mapping,
+                       *mg_matrixfree[i - 1]->get_mapping_info().mapping,
+                       mg_matrixfree[i]->get_affine_constraints(dof_handler_index),
+                       mg_matrixfree[i - 1]->get_affine_constraints(dof_handler_index));
+      transfers[i] = transfer;
     }
   }
 
@@ -74,7 +89,7 @@ MultigridTransfer<dim, Number, VectorType>::interpolate(unsigned int const level
                                                         VectorType &       dst,
                                                         VectorType const & src) const
 {
-  transfers[level].interpolate(dst, src);
+  transfers[level]->interpolate(dst, src);
 }
 
 template<int dim, typename Number, typename VectorType>

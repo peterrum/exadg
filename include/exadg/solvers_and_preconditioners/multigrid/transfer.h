@@ -55,7 +55,7 @@ public:
                      VectorType const & src) const final;
 
 private:
-  dealii::MGLevelObject<dealii::MGTwoLevelTransfer<dim, VectorType>> transfers;
+  dealii::MGLevelObject<std::shared_ptr<dealii::MGTwoLevelTransferBase<VectorType>>> transfers;
 
   std::unique_ptr<dealii::MGTransferGlobalCoarsening<dim, VectorType>> mg_transfer;
 };
