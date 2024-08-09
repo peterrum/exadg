@@ -22,6 +22,7 @@
 #ifndef PRECONDITIONER_AMG
 #define PRECONDITIONER_AMG
 
+#include <deal.II/dofs/dof_tools.h>
 #include <deal.II/lac/la_parallel_vector.h>
 #include <deal.II/lac/petsc_precondition.h>
 #include <deal.II/lac/petsc_solver.h>
@@ -284,15 +285,28 @@ public:
       // get Teuchos::ParameterList to provide custom near null space basis
       Teuchos::ParameterList parameter_list = get_parameter_list();
 
-      std::vector<VectorType> constant_modes = get_constant_modes();
+      std::vector<std::vector<double>>  constant_modes;
+      if(pde_operator.get_matrix_free().get_dof_handler().has_level_dofs())
+        dealii::DoFTools::extract_level_elasticity_modes(
+          0, 
+          mapping,
+          pde_operator.get_matrix_free().get_dof_handler(),
+          dealii::ComponentMask(dim, true),
+          constant_modes);
+      else
+        dealii::DoFTools::extract_elasticity_modes(mapping,
+          pde_operator.get_matrix_free().get_dof_handler(),
+          dealii::ComponentMask(dim, true),
+          constant_modes);
+
+      ml_data.elasticity_modes = constant_modes;
 
       // Add constant modes to Teuchos::ParameterList.
       std::unique_ptr<Epetra_MultiVector>
         ptr_distributed_modes; // has to stay alive until after amg.initialize();
-      set_operator_nullspace(parameter_list,
+      ml_data.set_operator_null_space(parameter_list,
                              ptr_distributed_modes,
-                             system_matrix.trilinos_matrix(),
-                             constant_modes);
+                             system_matrix.trilinos_matrix());
 
       // Initialize with the Teuchos::ParameterList.
       amg.initialize(system_matrix, parameter_list);
